@@ -48,6 +48,7 @@ def load_model_background():
 threading.Thread(target=load_model_background, daemon=True).start()
 
 # --- Health check (required by Leapcell) ---
+@app.get("/kaithheathcheck")
 @app.get("/kaithhealth")
 async def health_check():
     # Always return OK during startup
