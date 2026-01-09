@@ -6,7 +6,7 @@ from llama_cpp import Llama
 
 app = FastAPI(title="LFM2-350M Chat API", version="1.0")
 
-# --- Load model ---
+# Load model at startup
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "model", "LFM2-350M-Q4_0.gguf")
 
@@ -14,22 +14,17 @@ if not os.path.isfile(MODEL_PATH):
     raise RuntimeError(f"Model file not found: {MODEL_PATH}")
 
 print(f"🔍 Loading model from: {MODEL_PATH}")
-try:
-    llm = Llama(
-        model_path=MODEL_PATH,
-        n_ctx=2048,
-        n_threads=4,
-        verbose=False
-    )
-    print("✅ Model loaded successfully!")
-except Exception as e:
-    print(f"💥 Failed to load model: {e}")
-    raise
+llm = Llama(
+    model_path=MODEL_PATH,
+    n_ctx=2048,
+    n_threads=4,
+    verbose=False
+)
+print("✅ Model loaded successfully!")
 
-# --- API ---
 class ChatRequest(BaseModel):
     message: str
-    system_prompt: str = "You are a helpful AI assistant."
+    system_prompt: str = "You are a helpful AI assistant. Provide clear, concise, accurate responses."
 
 @app.post("/chat")
 def chat(request: ChatRequest):
