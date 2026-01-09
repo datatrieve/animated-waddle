@@ -7,9 +7,9 @@ import urllib.request
 # CONFIGURATION
 # ============================================
 MODEL_PATH = "./model"
-MODEL_FILE = "LFM2-1.2B-Q4_0.gguf"
+MODEL_FILE = "LFM2-1.2B-RAG-Q4_0.gguf"
 # Direct download URL from Hugging Face
-MODEL_URL = "https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/resolve/main/LFM2-1.2B-Q4_0.gguf"
+MODEL_URL = "https://huggingface.co/LiquidAI/LFM2-1.2B-RAG-GGUF/resolve/main/LFM2-1.2B-RAG-Q4_0.gguf?download=true"
 
 def download_with_progress(url, destination):
     """Download file with progress bar"""
