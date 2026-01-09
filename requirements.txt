@@ -1,4 +1,4 @@
 fastapi
 uvicorn[standard]
-llama-cpp-python==0.2.79
 leap-bundle
+llama-cpp-python==0.2.79
