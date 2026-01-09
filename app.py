@@ -1,43 +1,80 @@
 # app.py
 import os
 import shutil
+import threading
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from llama_cpp import Llama
 
-app = FastAPI(title="LFM2-350M Chat API", version="1.0")
+app = FastAPI(title="LFM2-350M Chat API")
 
-# --- Paths ---
-BUILD_MODEL_DIR = "/app/model"
-MODEL_FILENAME = "LFM2-350M-Q4_0.gguf"
-RUNTIME_MODEL_PATH = f"/tmp/{MODEL_FILENAME}"
+# --- Config ---
+BUILD_MODEL_PATH = "/app/model/LFM2-350M-Q4_0.gguf"
+RUNTIME_MODEL_PATH = "/tmp/LFM2-350M-Q4_0.gguf"
+llm = None
+_model_loading_error = None
+_model_loaded = threading.Event()
 
-# --- Copy model to /tmp on startup (if not already there) ---
-if not os.path.exists(RUNTIME_MODEL_PATH):
-    source_path = os.path.join(BUILD_MODEL_DIR, MODEL_FILENAME)
-    if not os.path.exists(source_path):
-        raise RuntimeError(f"Model not found at build path: {source_path}")
-    print(f"Copying model from {source_path} to {RUNTIME_MODEL_PATH}...")
-    shutil.copyfile(source_path, RUNTIME_MODEL_PATH)
-    print("✅ Model copied to /tmp")
+def load_model_background():
+    global llm, _model_loading_error
+    try:
+        # Copy model to /tmp if not already there
+        if not os.path.exists(RUNTIME_MODEL_PATH):
+            print("🔄 Copying model to /tmp...")
+            shutil.copyfile(BUILD_MODEL_PATH, RUNTIME_MODEL_PATH)
+            print("✅ Copy complete.")
 
-# --- Load model from /tmp ---
-print(f"🔍 Loading model from: {RUNTIME_MODEL_PATH}")
-llm = Llama(
-    model_path=RUNTIME_MODEL_PATH,
-    n_ctx=2048,
-    n_threads=4,
-    verbose=False
-)
-print("✅ Model loaded successfully!")
+        # Validate file size (~2.2 GB expected)
+        size_gb = os.path.getsize(RUNTIME_MODEL_PATH) / (1024**3)
+        print(f"📏 Model size: {size_gb:.2f} GB")
+        if size_gb < 1.5:
+            raise RuntimeError("Model file too small — likely corrupted")
 
-# --- API ---
+        print("🧠 Loading model...")
+        llm = Llama(
+            model_path=RUNTIME_MODEL_PATH,
+            n_ctx=2048,
+            n_threads=4,
+            verbose=False
+        )
+        print("✅ Model loaded successfully!")
+    except Exception as e:
+        _model_loading_error = str(e)
+        print(f"💥 Model load failed: {e}")
+    finally:
+        _model_loaded.set()
+
+# Start loading in background thread
+threading.Thread(target=load_model_background, daemon=True).start()
+
+# --- Health check (required by Leapcell) ---
+@app.get("/kaithhealth")
+async def health_check():
+    # Always return OK during startup
+    return {"status": "starting"}
+
+@app.get("/health")
+async def full_health():
+    if _model_loading_error:
+        raise HTTPException(status_code=500, detail=f"Model load failed: {_model_loading_error}")
+    if llm is None:
+        return {"status": "loading"}
+    return {"status": "ready"}
+
+# --- Chat endpoint ---
 class ChatRequest(BaseModel):
     message: str
-    system_prompt: str = "You are a helpful AI assistant. Provide clear, concise, accurate responses."
+    system_prompt: str = "You are a helpful AI assistant."
 
 @app.post("/chat")
-def chat(request: ChatRequest):
+async def chat(request: ChatRequest):
+    # Wait up to 60 seconds for model to load
+    if not _model_loaded.wait(timeout=60):
+        raise HTTPException(status_code=500, detail="Model loading timeout")
+    
+    if _model_loading_error:
+        raise HTTPException(status_code=500, detail=f"Model load failed: {_model_loading_error}")
+    
     try:
         messages = [
             {"role": "system", "content": request.system_prompt},
@@ -48,7 +85,3 @@ def chat(request: ChatRequest):
         return {"response": reply}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
