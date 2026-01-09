@@ -1,4 +1,3 @@
 fastapi
 uvicorn[standard]
-leap-bundle
 llama-cpp-python==0.2.79
