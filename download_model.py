@@ -1,38 +1,33 @@
 # download_model.py
 import os
-import subprocess
 import sys
+import urllib.request
 
-MODEL_NAME = "LFM2-350M"
-QUANTIZATION = "Q4_0"
+MODEL_URL = "https://huggingface.co/LiquidAI/LFM2-350M-GGUF/resolve/main/LFM2-350M-Q4_0.gguf?download=true"
 OUTPUT_DIR = "./model"
-EXPECTED_FILE = os.path.join(OUTPUT_DIR, f"{MODEL_NAME}-{QUANTIZATION}.gguf")
+MODEL_FILENAME = "LFM2-350M-Q4_0.gguf"
+MODEL_PATH = os.path.join(OUTPUT_DIR, MODEL_FILENAME)
 
-# Create output dir if needed
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Skip if already downloaded
-if os.path.exists(EXPECTED_FILE):
-    print(f"Model already exists at {EXPECTED_FILE}. Skipping download.")
+if os.path.exists(MODEL_PATH):
+    print(f"✅ Model already exists at {MODEL_PATH}")
     sys.exit(0)
 
-print(f"Downloading {MODEL_NAME} ({QUANTIZATION}) to {OUTPUT_DIR}...")
+print(f"📥 Downloading model from: {MODEL_URL}")
+print(f"   Saving to: {MODEL_PATH}")
 
 try:
-    # Note: --output-path (not --output-dir)
-    result = subprocess.run([
-        "leap-bundle", "download",
-        MODEL_NAME,
-        "--quantization", QUANTIZATION,
-        "--output-path", OUTPUT_DIR  # ✅ Correct flag
-    ], check=True, text=True, capture_output=True)
-    print("✅ Download successful!")
-    print(result.stdout)
-except subprocess.CalledProcessError as e:
-    print("❌ Download failed!")
-    print("STDOUT:", e.stdout)
-    print("STDERR:", e.stderr)
-    sys.exit(1)
-except FileNotFoundError:
-    print("❌ 'leap-bundle' command not found.")
+    def progress_hook(count, block_size, total_size):
+        percent = min(100, int(count * block_size * 100 / total_size))
+        if percent % 10 == 0:
+            print(f"   Progress: {percent}%")
+
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH, reporthook=progress_hook)
+    
+    size_gb = os.path.getsize(MODEL_PATH) / (1024**3)
+    print(f"✅ Download complete! Size: {size_gb:.2f} GB")
+    
+except Exception as e:
+    print(f"❌ Download failed: {e}")
     sys.exit(1)
